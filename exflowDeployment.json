@@ -1,0 +1,629 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "customerName": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The name of the Customer to deploy."
+            },
+            "minLength": 1
+        },
+        "tenantName": {
+            "type": "string",
+            "defaultValue": "exflowdevcloud",
+            "metadata": {
+                "description": "The name of tenant to deploy to."
+            },
+            "minLength": 1
+        },
+        "partner": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The name of the Partner for the Customer deployment."
+            },
+            "minLength": 1
+        },
+        "securityAdmins": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Administrators of the Web Site, separated by ','."
+            }
+        },
+        "appServicePlanName": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The name of the App Service Plan to deploy or bind WebApp to. Leave empty for auto-generated unique name."
+            }
+        },
+        "appServicePlanSKU": {
+            "type": "string",
+            "allowedValues": [
+                "F1 Free",
+                "D1 Shared",
+                "B1 Basic",
+                "B2 Basic",
+                "B3 Basic",
+                "S1 Standard",
+                "S2 Standard",
+                "S3 Standard",
+                "P1 Premium",
+                "P2 Premium",
+                "P3 Premium",
+                "P4 Premium"
+            ],
+            "defaultValue": "B1 Basic",
+            "metadata": {
+                "description": "The App Service Plan SKU."
+            },
+            "minLength": 7
+        },
+        "applicationInsightsName": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The name of the Application Insights Instance to bind WebApp to. Leave empty for auto-generated unique name."
+            }
+        },
+        "exflowUri": {
+            "type": "string",
+            "defaultValue": "https://<CustomerUniqueURI>.cloudax.dynamics.com",
+            "minLength": 1,
+            "metadata": {
+                "description": "The Exflow URI to be used."
+            },
+            "minLength": 5
+        },
+        "hybridConnection": {
+            "type": "string",
+            "allowedValues": ["True", "False"],
+            "defaultValue": "False",
+            "metadata": {
+                "description": "Create a Hybrid Connection for the Web Application."
+            },
+            "minLength": 4
+        },
+        "hybridConnectionHostName": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The Hybrid Connection Host Name."
+            }
+        },
+        "hybridConnectionPort": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The Hybrid Connection Port Number."
+            }
+        }
+    },
+    "variables": {
+        "uniqueCustomerString": "[concat('ex', uniqueString(subscription().subscriptionId, parameters('CustomerName')))]",
+        "dnsDomainName": "exflowdev.cloud",
+        "globalResourceGroupName": "SAAS-Services",
+        "packageUri": "https://github.com/djpericsson/AzureWebAppDeploy/raw/master/alis.zip",
+        "storageSKU": "Standard_LRS",
+        "certificateResourceGroupName": "SAAS-Services",
+        "certificateKeyVaultName": "SAAS-Services",
+        "certificateKeyVaultId": "[resourceId(subscription().subscriptionId, variables('certificateResourceGroupName'), 'Microsoft.KeyVault/vaults', variables('certificateKeyVaultName'))]",
+        "webAppCertificateName": "exdevcloudcert149f0def-4526-4a09-a288-365cf8b23815",
+        "appSettings": "[concat('{\"applicationInsightsInstrumentationKey\":\"AppInsightsKey\",\"APPINSIGHTS_INSTRUMENTATIONKEY\":\"AppInsightsKey\",\"APPINSIGHTS_PORTALINFO\":\"ASP.NET\",\"APPINSIGHTS_PROFILERFEATURE_VERSION\":\"1.0.0\",\"startup.DeploymentName\":\"', variables('uniqueCustomerString'),'\",\"Startup.HostRightPart\":\".', parameters('tenantName'),'\",\"Startup.AzureKeyVaultURL\":\"CustomerKeyVault\",\"offline_\":\"85.24.197.82\"}')]",
+        "tags": {
+            "Customer": "[parameters('CustomerName')]",
+            "Partner": "[parameters('partner')]",
+            "Solution": "[variables('uniqueCustomerString')]"
+        },
+        "storageAccountName": "[variables('uniqueCustomerString')]",
+        "containers": ["attachments", "documents", "exflowdiagnostics"],
+        "webSiteName": "[variables('uniqueCustomerString')]",
+        "appServicePlanName": "[if(empty(parameters('appServicePlanName')), variables('uniqueCustomerString'), parameters('appServicePlanName'))]",
+        "applicationInsightsName": "[if(empty(parameters('applicationInsightsName')), variables('uniqueCustomerString'), parameters('applicationInsightsName'))]",
+        "keyVaultName": "[variables('uniqueCustomerString')]",
+        "hybridConnectionName": "[variables('uniqueCustomerString')]",
+        "namespaceName": "[variables('uniqueCustomerString')]",
+        "namespaceAuthorizationRuleName": "defaultListener",
+        "namespaceAuthRuleName": "defaultSender",
+        "userMetadata": "[concat('[{\"key\":\"endpoint\",\"value\":\"', parameters('hybridConnectionHostName'), ':', parameters('hybridConnectionPort'), '\"}]')]",
+        "appServicePlanSKU": {
+            "F1 Free": {
+                "name": "F1",
+                "capacity": "1"
+            },
+            "D1 Shared": {
+                "name": "D1",
+                "capacity": "2"
+            },
+            "B1 Basic": {
+                "name": "B1",
+                "capacity": "1"
+            },
+            "B2 Basic": {
+                "name": "B2",
+                "capacity": "2"
+            },
+            "B3 Basic": {
+                "name": "B3",
+                "capacity": "3"
+            },
+            "S1 Standard": {
+                "name": "S1",
+                "capacity": "1"
+            },
+            "S2 Standard": {
+                "name": "S2",
+                "capacity": "2"
+            },
+            "S3 Standard": {
+                "name": "S3",
+                "capacity": "3"
+            },
+            "P1 Premium": {
+                "name": "P1",
+                "capacity": "1"
+            },
+            "P2 Premium": {
+                "name": "P2",
+                "capacity": "2"
+            },
+            "P3 Premium": {
+                "name": "P3",
+                "capacity": "3"
+            },
+            "P4 Premium": {
+                "name": "P4",
+                "capacity": "4"
+            }
+        },
+        "identityResourceId": "[concat(resourceId('Microsoft.Web/sites', variables('webSiteName')),'/providers/Microsoft.ManagedIdentity/Identities/default')]",
+        "hybridConnectionResourceId": "[resourceId(resourcegroup().name, 'Microsoft.Relay/Namespaces/Hybridconnections', variables('namespaceName'), variables('hybridConnectionName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "name": "[concat(variables('globalResourceGroupName'),'-DNS')]",
+            "resourceGroup": "[variables('globalResourceGroupName')]",
+            "dependsOn": [],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {},
+                    "variables": {},
+                    "resources": [
+                        {
+                            "type": "Microsoft.Network/dnszones",
+                            "name": "[variables('dnsDomainName')]",
+                            "apiVersion": "2016-04-01",
+                            "location": "global",
+                            "properties": {}
+                        },
+                        {
+                            "type": "Microsoft.Network/dnsZones/CNAME",
+                            "name": "[concat(variables('dnsDomainName'), '/', tolower(replace(parameters('customerName'),' ', '')))]",
+                            "apiVersion": "2016-04-01",
+                            "location": "global",
+                            "tags": "[variables('tags')]",
+                            "dependsOn": ["[variables('dnsDomainName')]"],
+                            "properties": {
+                                "TTL": 3600,
+                                "CNAMERecord": {
+                                    "cname": "[concat(variables('webSiteName'), '.azurewebsites.net')]"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "[variables('storageAccountName')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2018-02-01",
+            "location": "[resourceGroup().location]",
+            "tags": "[variables('tags')]",
+            "kind": "StorageV2",
+            "sku": {
+                "name": "[variables('StorageSKU')]",
+                "tier": "Standard"
+            },
+            "properties": {
+                "accessTier": "Hot"
+            },
+            "resources": [
+                {
+                    "name": "[concat('default/', variables('containers')[0])]",
+                    "type": "blobServices/containers",
+                    "apiVersion": "2018-07-01",
+                    "dependsOn": ["[variables('storageAccountName')]"]
+                },
+                {
+                    "name": "[concat('default/', variables('containers')[1])]",
+                    "type": "blobServices/containers",
+                    "apiVersion": "2018-07-01",
+                    "dependsOn": ["[variables('storageAccountName')]"]
+                },
+                {
+                    "name": "[concat('default/', variables('containers')[2])]",
+                    "type": "blobServices/containers",
+                    "apiVersion": "2018-07-01",
+                    "dependsOn": ["[variables('storageAccountName')]"]
+                }
+            ]
+        },
+        {
+            "name": "[concat(variables('storageAccountName'), '/default')]",
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2018-07-01",
+            "dependsOn": ["[variables('storageAccountName')]"],
+            "properties": {
+                "cors": {
+                    "corsRules": [
+                        {
+                            "allowedOrigins": [
+                                "[concat(tolower(replace(parameters('customerName'),' ', '')), '.', variables('dnsDomainName'))]"
+                            ],
+                            "allowedMethods": ["GET"],
+                            "maxAgeInSeconds": 200,
+                            "exposedHeaders": ["x-ms-meta-*"],
+                            "allowedHeaders": ["x-ms-meta-abc", "x-ms-meta-data*", "x-ms-meta-target*"]
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "apiVersion": "2018-02-01",
+            "name": "[variables('appServicePlanName')]",
+            "type": "Microsoft.Web/serverfarms",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "[variables('AppServicePlanSKU')[parameters('AppServicePlanSKU')].name]",
+                "capacity": "[variables('AppServicePlanSKU')[parameters('AppServicePlanSKU')].capacity]"
+            },
+            "properties": {
+                "name": "[variables('appServicePlanName')]"
+            }
+        },
+        {
+            "apiVersion": "2017-04-01",
+            "name": "[variables('namespaceName')]",
+            "type": "Microsoft.Relay/Namespaces",
+            "location": "[resourceGroup().location]",
+            "tags": "[variables('tags')]",
+            "condition": "[equals(parameters('hybridConnection'), 'True')]",
+            "kind": "Relay",
+            "sku": {
+                "name": "Standard"
+            },
+            "properties": {},
+            "resources": [
+                {
+                    "apiVersion": "2017-04-01",
+                    "name": "[variables('hybridConnectionName')]",
+                    "type": "hybridConnections",
+                    "condition": "[equals(parameters('hybridConnection'), 'True')]",
+                    "dependsOn": ["[concat('Microsoft.Relay/namespaces/', variables('namespaceName'))]"],
+                    "properties": {
+                        "requiresClientAuthorization": "true",
+                        "userMetadata": "[variables('userMetadata')]"
+                    },
+                    "resources": [
+                        {
+                            "apiVersion": "2017-04-01",
+                            "name": "[variables('namespaceAuthorizationRuleName')]",
+                            "type": "authorizationRules",
+                            "condition": "[equals(parameters('hybridConnection'), 'True')]",
+                            "dependsOn": [
+                                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourcegroup().name, '/providers/Microsoft.Relay/Namespaces/', variables('namespaceName'), '/HybridConnections/', variables('hybridConnectionName'))]"
+                            ],
+                            "properties": {
+                                "Rights": ["Listen"]
+                            }
+                        },
+                        {
+                            "apiVersion": "2017-04-01",
+                            "name": "[variables('namespaceAuthRuleName')]",
+                            "type": "authorizationRules",
+                            "condition": "[equals(parameters('hybridConnection'), 'True')]",
+                            "dependsOn": [
+                                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourcegroup().name, '/providers/Microsoft.Relay/Namespaces/', variables('namespaceName'), '/HybridConnections/', variables('hybridConnectionName'))]"
+                            ],
+                            "properties": {
+                                "Rights": ["Send"]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "apiVersion": "2015-05-01",
+            "name": "[variables('applicationInsightsName')]",
+            "type": "Microsoft.Insights/components",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('webSiteName'))]": "Resource",
+                "displayName": "AppInsightsComponent"
+            },
+            "properties": {
+                "applicationId": "[variables('webSiteName')]"
+            }
+        },
+        {
+            "apiVersion": "2018-02-01",
+            "name": "[variables('webSiteName')]",
+            "type": "Microsoft.Web/sites",
+            "location": "[resourceGroup().location]",
+            "tags": "[variables('tags')]",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]",
+                "[resourceId('microsoft.insights/components/', variables('applicationInsightsName'))]"
+            ],
+            "properties": {
+                "name": "[variables('webSiteName')]",
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]",
+                "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(concat('microsoft.insights/components/', variables('applicationInsightsName'))).InstrumentationKey]"
+            },
+            "resources": [
+                {
+                    "name": "MSDeploy",
+                    "type": "extensions",
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2018-02-01",
+                    "dependsOn": ["[resourceId('Microsoft.Web/sites', variables('webSiteName'))]"],
+                    "properties": {
+                        "packageUri": "[variables('PackageUri')]",
+                        "dbType": "None",
+                        "connectionString": "",
+                        "setParameters": {
+                        }
+                    }
+                },
+                {
+                    "apiVersion": "2018-02-01",
+                    "name": "appsettings",
+                    "type": "config",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Web/Sites', variables('webSiteName'))]",
+                        "[concat('Microsoft.Web/Sites/', variables('webSiteName'), '/Extensions/MSDeploy')]"
+                    ],
+                    "properties": {
+                        "aad_ClientId": "[reference(variables('identityResourceId'), '2015-08-31-PREVIEW').principalId]",
+                        "aad_ClientSecret": "aad_ClientSecret",
+                        "aad_TenantId": "[subscription().tenantId]",
+                        "aad_PostLogoutRedirectUri": "[concat('https://', variables('webSiteName'), '.azurewebsites.net/close.aspx?signedout=yes')]",
+                        "aad_ExternalApiId": "[parameters('ExflowUri')]",
+                        "security_Admins": "[parameters('SecurityAdmins')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(concat('microsoft.insights/components/', variables('applicationInsightsName'))).InstrumentationKey]",
+                        "ApplicationInsightsAgent_EXTENSION_VERSION": "~2",
+                        "XDT_MicrosoftApplicationInsights_Mode": "recommended",
+                        "APPINSIGHTS_PROFILERFEATURE_VERSION": "1.0.0",
+                        "DiagnosticServices_EXTENSION_VERSION": "~3",
+                        "APPINSIGHTS_SNAPSHOTFEATURE_VERSION": "1.0.0",
+                        "SnapshotDebugger_EXTENSION_VERSION": "~1",
+                        "InstrumentationEngine_EXTENSION_VERSION": "~1"
+                    }
+                },
+                {
+                    "apiVersion": "2018-02-01",
+                    "name": "connectionstrings",
+                    "type": "config",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Web/Sites', variables('webSiteName'))]",
+                        "[concat('Microsoft.Web/Sites/', variables('webSiteName'), '/Extensions/MSDeploy')]"
+                    ],
+                    "properties": {
+                        "StorageConnection": {
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'),';AccountKey=',concat(listKeys(concat('/Microsoft.Storage/storageAccounts/', variables('storageAccountName')),'2015-05-01-preview').key1))]",
+                            "Name": "StorageConnection",
+                            "type": "Custom"
+                        },
+                        "KeyValueStorageConnection": {
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'),';AccountKey=',concat(listKeys(concat('/Microsoft.Storage/storageAccounts/', variables('storageAccountName')),'2015-05-01-preview').key1))]",
+                            "Name": "StorageConnection",
+                            "type": "Custom"
+                        }
+                    }
+                },
+                {
+                    "type": "hostnameBindings",
+                    "name": "[concat(tolower(replace(parameters('customerName'),' ', '')), '.', variables('dnsDomainName'))]",
+                    "apiVersion": "2016-08-01",
+                    "location": "[resourceGroup().location]",
+                    "properties": {},
+                    "dependsOn": ["[resourceId('Microsoft.Web/Sites', variables('webSiteName'))]"]
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "name": "[concat(resourceGroup().name,'-Relay')]",
+            "resourceGroup": "[resourceGroup().name]",
+            "dependsOn": [
+                "[resourceId(resourcegroup().name, 'Microsoft.Relay/Namespaces/Hybridconnections', variables('namespaceName'), variables('hybridConnectionName'))]",
+                "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourcegroup().name, '/providers/Microsoft.Web/sites/', variables('webSiteName'))]",
+                "[concat('Microsoft.Web/Sites/', variables('webSiteName'), '/Extensions/MSDeploy')]",
+                "[concat(variables('hybridConnectionResourceId'), '/authorizationRules/', variables('namespaceAuthRuleName'))]"
+            ],
+            "condition": "[equals(parameters('hybridConnection'), 'True')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "https://raw.githubusercontent.com/djpericsson/exCustomerDeploy/master/relayDeployment.json",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "namespaceName": {
+                        "value": "[variables('namespaceName')]"
+                    },
+                    "hybridConnectionName": {
+                        "value": "[variables('hybridConnectionName')]"
+                    },
+                    "hybridConnectionHostName": {
+                        "value": "[parameters('hybridConnectionHostName')]"
+                    },
+                    "hybridConnectionPort": {
+                        "value": "[parameters('hybridConnectionPort')]"
+                    },
+                    "namespaceAuthRuleName": {
+                        "value": "[variables('namespaceAuthRuleName')]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "name": "[variables('keyVaultName')]",
+            "apiVersion": "2018-02-14",
+            "location": "[resourceGroup().location]",
+            "tags": "[variables('tags')]",
+            "scale": null,
+            "properties": {
+                "sku": {
+                    "family": "A",
+                    "name": "standard"
+                },
+                "tenantId": "[subscription().tenantid]",
+                "accessPolicies": [
+                    {
+                        "tenantId": "[subscription().tenantid]",
+                        "objectId": "[reference(concat(resourceId('Microsoft.Web/sites', variables('webSiteName')), '/providers/Microsoft.ManagedIdentity/Identities/default'), '2015-08-31-PREVIEW').principalId]",
+                        "permissions": {
+                            "keys": [],
+                            "secrets": ["get"],
+                            "certificates": []
+                        }
+                    }
+                ],
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": false
+            },
+            "dependsOn": ["[resourceId('Microsoft.Web/sites', variables('webSiteName'))]"]
+        },
+        {
+            "name": "[guid(variables('webSiteName'))]",
+            "apiVersion": "2017-09-01",
+            "location": "[resourceGroup().location]",
+            "tags": "[variables('tags')]",
+            "type": "Microsoft.Authorization/roleAssignments",
+            "dependsOn": ["[resourceId('Microsoft.Web/sites', variables('webSiteName'))]"],
+            "properties": {
+                "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalId": "[reference(variables('identityResourceId'), '2015-08-31-PREVIEW').principalId]",
+                "scope": "[resourceGroup().id]"
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(variables('uniqueCustomerString'), '/appSettings')]",
+            "apiVersion": "2018-02-14",
+            "dependsOn": ["[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"],
+            "properties": {
+                "contentType": "text/plain",
+                "value": "[variables('appSettings')]"
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "name": "[concat(variables('certificateResourceGroupName'),'-VaultPermissions')]",
+            "resourceGroup": "[variables('certificateResourceGroupName')]",
+            "dependsOn": ["[resourceId('Microsoft.Web/sites', variables('webSiteName'))]"],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {},
+                    "variables": {},
+                    "resources": [
+                        {
+                            "type": "Microsoft.KeyVault/vaults/accessPolicies",
+                            "name": "[concat(variables('certificateKeyVaultName'), '/add')]",
+                            "apiVersion": "2016-10-01",
+                            "properties": {
+                                "accessPolicies": [
+                                    {
+                                        "tenantId": "[subscription().tenantid]",
+                                        "objectId": "[reference(concat(resourceId('Microsoft.Web/sites', variables('webSiteName')), '/providers/Microsoft.ManagedIdentity/Identities/default'), '2015-08-31-PREVIEW').principalId]",
+                                        "permissions": {
+                                            "keys": [],
+                                            "secrets": ["get"],
+                                            "certificates": [],
+                                            "storage": []
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/certificates",
+            "name": "[variables('webAppCertificateName')]",
+            "apiVersion": "2016-03-01",
+            "location": "[resourceGroup().location]",
+            "dependsOn": ["[resourceId('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]"],
+            "properties": {
+                "keyVaultId": "[variables('certificateKeyVaultId')]",
+                "keyVaultSecretName": "[variables('webAppCertificateName')]",
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms/', variables('appServicePlanName'))]"
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2018-05-01",
+            "name": "[concat(resourcegroup().name,'-SSL')]",
+            "resourceGroup": "[resourcegroup().name]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('webSiteName'))]",
+                "[concat(variables('certificateResourceGroupName'),'-VaultPermissions')]",
+                "[variables('webAppCertificateName')]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {},
+                    "variables": {},
+                    "resources": [
+                        {
+                            "type": "Microsoft.Web/sites",
+                            "name": "[variables('webSiteName')]",
+                            "apiVersion": "2016-03-01",
+                            "location": "[resourceGroup().location]",
+                            "tags": "[variables('tags')]",
+                            "dependsOn": [],
+                            "properties": {
+                                "name": "[variables('webSiteName')]",
+                                "hostNameSslStates": [
+                                    {
+                                        "name": "[concat(tolower(replace(parameters('customerName'),' ', '')), '.', variables('dnsDomainName'))]",
+                                        "sslState": "SniEnabled",
+                                        "thumbprint": "[reference(resourceId('Microsoft.Web/certificates', variables('webAppCertificateName'))).Thumbprint]",
+                                        "toUpdate": true
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}
